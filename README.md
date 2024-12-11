@@ -10,11 +10,10 @@ This project demonstrates an AWS Glue job that performs incremental and full dat
 - [Prerequisites](#prerequisites)
 - [How It Works](#how-it-works)
 - [Job Parameters](#job-parameters)
-- [Folder Structure](#folder-structure)
 - [Usage](#usage)
 - [Error Handling](#error-handling)
 - [Logging](#logging)
-- [License](#license)
+
 
 ---
 
@@ -79,10 +78,6 @@ The script:
 - **`timestamp_s3_path`**: The S3 path where the `last_load_timestamp` is stored (e.g., `s3://<bucket-name>/path/to/timestamp.csv`).
 - **`load_type`**: Specifies whether to force a full load (`full`) or let the script decide based on `timestamp_s3_path`.
 
----
-
-
----
 
 ## Usage
 
