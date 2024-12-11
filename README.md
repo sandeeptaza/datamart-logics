@@ -1,133 +1,116 @@
+# AWS Glue Job for Incremental and Full Data Loads with Table Joins
 
-# Glue ETL Job for Incremental and Full Data Load
+This project demonstrates an AWS Glue job that performs incremental and full data loads from a source database, joins multiple tables, and writes the output as Parquet files to Amazon S3. The solution dynamically determines whether to perform a full or incremental load based on the presence of a last load timestamp stored in S3.
+
+---
+
+## Table of Contents
+- [Overview](#overview)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [How It Works](#how-it-works)
+- [Job Parameters](#job-parameters)
+- [Folder Structure](#folder-structure)
+- [Usage](#usage)
+- [Error Handling](#error-handling)
+- [Logging](#logging)
+- [License](#license)
+
+---
 
 ## Overview
 
-This Glue ETL script performs both incremental and full data loads for a set of tables specified in the `table_incremental_fields` dictionary. The script uses AWS Glue, S3, and Apache Spark to handle large-scale data extraction, transformation, and loading tasks. It includes processes for:
-
-1. **Incremental Data Load**: Fetches only new or updated records based on a timestamp column.
-2. **Full Data Load**: Loads the complete dataset for all configured tables.
-3. **Joins Across Tables**: Merges data from multiple tables into a unified dataset.
-4. **Processing Specific Tables**: Handles individual tables (e.g., `adjustment`) with standalone processing logic.
-5. **CDC Tracking**: Stores and updates the last load timestamp in S3 for incremental data loads.
-
----
-
-## Key Features
-
-- **Dynamic Frame Filtering**: Filters tables based on the `updated_at` or `created_at` fields for incremental loading.
-- **Error Handling**: Includes logging and exception handling for robust processing.
-- **Parameterized Execution**: Accepts runtime parameters for flexibility:
-  - `JOB_NAME`: Glue job name.
-  - `database_name`: Glue catalog database name.
-  - `timestamp_s3_path`: S3 path for storing and retrieving the last load timestamp.
-  - `load_type`: Specifies either `full` or `incremental`.
+The script:
+- Reads from multiple source tables.
+- Performs a full load if no last load timestamp is found or an incremental load otherwise.
+- Joins data from multiple tables based on predefined relationships.
+- Writes the final dataset as Parquet files to S3.
+- Updates the last load timestamp in S3 after each successful run.
 
 ---
 
-## Table Configuration
+## Features
 
-The following tables are processed by this script:
-
-| Table Name                                         | Incremental Field  |
-|---------------------------------------------------|--------------------|
-| account_metadata_datamart_public_queue            | `updated_at`       |
-| account_metadata_datamart_public_account          | `updated_at`       |
-| account_metadata_datamart_public_account_metadata | `updated_at`       |
-| account_metadata_datamart_public_settlement_transaction | `created_at` |
-| account_metadata_datamart_public_account_risk     | `updated_at`       |
-| account_metadata_datamart_public_adjustment       | `updated_at`       |
-
----
-
-## S3 Path Requirements
-
-- **Timestamp File**: The `timestamp_s3_path` should point to a CSV file with the format:
-
-  ```csv
-  last_load_timestamp
-  YYYY-MM-DD HH:MM:SS
-  ```
-
-- **Output Path**: Data is written to S3 in the following directory structure:
-
-  ```
-  s3://iceberg-logics-sandeep/datamart/<database_name>/
-  ```
-
----
-
-## Execution Flow
-
-1. **Parameter Parsing**: Reads job parameters for database name, S3 path, and load type.
-2. **Timestamp Retrieval**: Fetches the last load timestamp from S3 or defaults to `None` for a full load.
-3. **Data Loading**:
-   - For `incremental` load: Filters records based on the last load timestamp.
-   - For `full` load: Retrieves all records.
-4. **Table Processing**:
-   - Processes standalone tables (e.g., `adjustment`).
-   - Performs joins across other tables.
-5. **Data Writing**:
-   - Writes the joined dataset to S3 in Parquet format.
-   - Updates the last load timestamp in S3.
-
----
-
-## Logging
-
-The script uses Python's `logging` library to output logs at various levels:
-- `INFO`: General process updates and successes.
-- `WARNING`: Missing or empty datasets.
-- `ERROR`: Critical issues that halt processing.
-
----
-
-## Error Handling
-
-- Missing Timestamp File: Defaults to a full load if the timestamp file is not found.
-- Empty Data Frames: Skips further operations for empty datasets.
-- Missing Tables: Exits the job if any required table is missing for joins.
+- **Incremental Loading**: Only loads data modified since the last run.
+- **Full Loading**: Supports initial full table loads.
+- **Dynamic Joins**: Combines multiple tables based on predefined relationships.
+- **Timestamp Management**: Retrieves and updates the last load timestamp in S3.
+- **Error Handling**: Graceful error handling with logging for debugging.
 
 ---
 
 ## Prerequisites
 
-1. **AWS Glue Setup**:
-   - Ensure the Glue job has necessary IAM permissions for S3, Glue Catalog, and CloudWatch logging.
-   - Configure the Glue database and tables in the AWS Glue Data Catalog.
-2. **S3 Bucket**:
-   - Create the required S3 bucket and folders for storing timestamps and outputs.
-3. **Glue Parameters**:
-   - Provide the correct runtime parameters during job submission.
+1. AWS Glue environment set up.
+2. An S3 bucket for:
+   - Storing the last load timestamp (e.g., `s3://<bucket-name>/path/to/timestamp.csv`).
+   - Saving the Parquet output.
+3. Source database crawled and cataloged in AWS Glue.
+4. IAM Role for the Glue job with permissions for Glue, S3, and logging.
+
+---
+
+## How It Works
+
+1. **Load Type Determination**:
+   - The script checks if the `last_load_timestamp` file exists in S3.
+   - If the file is missing or the `load_type` is explicitly set to `full`, a full load is performed.
+   - Otherwise, an incremental load is executed.
+
+2. **Data Loading**:
+   - For incremental loads, rows with timestamps greater than `last_load_timestamp` are filtered.
+   - For full loads, all rows are processed.
+
+3. **Data Transformation**:
+   - Joins are performed between tables based on predefined keys.
+
+4. **Data Writing**:
+   - The final joined dataset is saved as Parquet files in the specified S3 location.
+
+5. **Timestamp Update**:
+   - The script updates the `last_load_timestamp` file in S3 with the latest timestamp from the processed data.
+
+---
+
+## Job Parameters
+
+
+- **`database_name`**: The Glue catalog database containing the source tables.
+- **`timestamp_s3_path`**: The S3 path where the `last_load_timestamp` is stored (e.g., `s3://<bucket-name>/path/to/timestamp.csv`).
+- **`load_type`**: Specifies whether to force a full load (`full`) or let the script decide based on `timestamp_s3_path`.
+
+---
+
 
 ---
 
 ## Usage
 
-### Submit Job in AWS Glue Console
-
-1. Navigate to the AWS Glue Console.
-2. Create a new Glue job and upload the script.
-3. Set the required parameters:
-   - `--JOB_NAME`: Glue job name.
-   - `--database_name`: Glue catalog database name.
-   - `--timestamp_s3_path`: S3 path for timestamp file.
-   - `--load_type`: `full` or `incremental`.
+1. **Prepare the Environment**:
+   - Ensure all source tables are crawled and available in the Glue catalog.
+   - Upload an initial `timestamp.csv` file (if available) to the specified S3 location.
 
 
+
+2. **Monitor Logs**:
+   - View job execution logs in Amazon CloudWatch.
 
 ---
 
-## Known Limitations
+## Error Handling
 
-1. **Schema Changes**: The script assumes consistent schemas in the Glue Catalog from Tazapay PRD DB.
-2. **Performance**: Incremental loading can still process large datasets, which may impact runtime significantly.
-3. **Error Handling**: Limited recovery options for missing tables in joins.
+- **Missing Tables or Columns**: Logs a warning and skips the table if expected columns are missing.
+- **Join Failures**: Logs an error and exits if the base table or critical joins fail.
+- **S3 File Errors**: Handles `NoSuchKey` gracefully when the timestamp file is missing.
 
 ---
 
-## Extending the Script
+## Logging
 
-1. **New Tables**: Add entries to the `table_incremental_fields` dictionary.
-2. **Custom Logic**: Update functions like `process_adjustment` or `perform_joins` to include new logic.
-3. **Alternate Storage**: Modify the `output_path` for different S3 bucket configurations.
+The script uses Python's `logging` module. Logs are available in CloudWatch under the Glue job's log group. Key logging features:
+- **INFO**: Tracks major steps and table processing.
+- **WARNING**: Highlights missing data or skipped steps.
+- **ERROR**: Captures critical failures.
+
+---
+
